@@ -168,8 +168,8 @@ html, body {
 }
 .login__preview {
   position: absolute;
-  right: -80px; bottom: 56px;
-  width: 540px;
+  right: 56px; bottom: 96px;
+  width: min(420px, calc(100% - 112px));
   background: var(--color-gray-900);
   border: 1px solid var(--color-gray-800);
   border-radius: 14px;
