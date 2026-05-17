@@ -1,8 +1,8 @@
 'use client';
 
-// Login screen — split layout: dark hero (with a decorative preview list) on
-// the left, the form on the right. Presentational: there is no real auth, so
-// the login and social buttons just route to /main.
+// Login screen — split layout: dark hero on the left, form on the right.
+// Presentational: there is no real auth, so the login and social buttons just
+// route to /main.
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -44,51 +44,6 @@ export function LoginScreen() {
             팀과 개인의 모든 작업을 한 곳에서. 마감일, 우선순위, 서브태스크까지 —
             외주 프로젝트의 복잡한 일정을 단순하게 만들어 줍니다.
           </p>
-        </div>
-
-        {/* Decorative preview */}
-        <div className="login__preview" aria-hidden="true">
-          <div className="login__preview-row is-done">
-            <span className="login__preview-check is-on">
-              <svg
-                width="10"
-                height="10"
-                viewBox="0 0 12 12"
-                fill="none"
-                style={{ display: 'block', margin: '2px auto' }}
-              >
-                <path
-                  d="M2 6L5 9L10 3"
-                  stroke="white"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </span>
-            <span>팀 위클리 안건 정리</span>
-            <span className="meta">오늘</span>
-          </div>
-          <div className="login__preview-row">
-            <span className="login__preview-check" />
-            <span>Q4 디자인 시스템 토큰 리뷰</span>
-            <span className="meta">오늘</span>
-          </div>
-          <div className="login__preview-row">
-            <span className="login__preview-check" />
-            <span>코드 리뷰 — PR #234</span>
-            <span className="meta">오늘</span>
-          </div>
-          <div className="login__preview-row">
-            <span className="login__preview-check" />
-            <span>신규 클라이언트 킥오프 미팅 준비</span>
-            <span className="meta">내일</span>
-          </div>
-          <div className="login__preview-row">
-            <span className="login__preview-check" />
-            <span>스프린트 회고 자료 정리</span>
-            <span className="meta">5/18</span>
-          </div>
         </div>
 
         <div className="login__foot">

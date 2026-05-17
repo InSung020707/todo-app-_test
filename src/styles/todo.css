@@ -166,33 +166,6 @@ html, body {
   color: var(--color-gray-400);
   margin: 0;
 }
-.login__preview {
-  position: absolute;
-  right: 56px; bottom: 96px;
-  width: min(420px, calc(100% - 112px));
-  background: var(--color-gray-900);
-  border: 1px solid var(--color-gray-800);
-  border-radius: 14px;
-  padding: 16px;
-  box-shadow: var(--shadow-2xl);
-  opacity: 0.92;
-}
-.login__preview-row {
-  display: flex; align-items: center; gap: 10px;
-  padding: 10px 12px;
-  border-radius: 8px;
-  font: 500 13px/1 var(--font-sans);
-  color: var(--color-gray-200);
-}
-.login__preview-row + .login__preview-row { margin-top: 2px; }
-.login__preview-row.is-done { color: var(--color-gray-500); text-decoration: line-through; }
-.login__preview-check {
-  width: 16px; height: 16px; border-radius: 4px;
-  border: 1.5px solid var(--color-gray-600);
-  flex-shrink: 0;
-}
-.login__preview-check.is-on { background: var(--color-accent); border-color: var(--color-accent); }
-.login__preview-row .meta { margin-left: auto; font-size: 11px; color: var(--color-gray-500); }
 .login__foot { color: var(--color-gray-500); font: 500 12px/1 var(--font-sans); }
 
 .login__pane {
