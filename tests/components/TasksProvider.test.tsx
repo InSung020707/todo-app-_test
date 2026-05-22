@@ -1,12 +1,52 @@
-import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+/**
+ * Updated for 002-supabase-auth: TasksProvider now sources tasks from the
+ * Supabase data layer instead of localStorage. The PUBLIC API is unchanged
+ * (FR-012) — these tests verify the same behaviors via mocked data layer.
+ */
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { TasksProvider, useTasks } from '@/context/TasksProvider';
-import { SAMPLE_TASKS } from '@/lib/store/sample-data';
-import { TASKS_KEY } from '@/lib/store/persistence';
-import type { Task } from '@/lib/types';
 
-// Test harness — surfaces state and exposes each mutation as a button.
+import type { Subtask, Task } from '@/lib/types';
+
+// Hoisted mocks — exposed at module top so we can both inject via vi.mock
+// and adjust per-test.
+const { dataMock } = vi.hoisted(() => ({
+  dataMock: {
+    listTasks: vi.fn(),
+    createTask: vi.fn(),
+    updateTask: vi.fn(),
+    deleteTask: vi.fn(),
+    createSubtask: vi.fn(),
+    updateSubtask: vi.fn(),
+    deleteSubtask: vi.fn(),
+  },
+}));
+
+vi.mock('@/lib/data/tasks', () => dataMock);
+
+import { TasksProvider, useTasks } from '@/context/TasksProvider';
+
+const baseTask = (over: Partial<Task> = {}): Task => ({
+  id: 't1',
+  title: '첫 작업',
+  due: '',
+  priority: 'none',
+  category: 'dev',
+  starred: false,
+  done: false,
+  notes: '',
+  subs: [],
+  ...over,
+});
+
+const baseSub = (over: Partial<Subtask> = {}): Subtask => ({
+  id: 's1',
+  text: '하위 1',
+  done: true,
+  ...over,
+});
+
 function Probe() {
   const {
     tasks,
@@ -24,19 +64,19 @@ function Probe() {
       <span data-testid="count">{tasks.length}</span>
       <span data-testid="first-title">{first?.title}</span>
       <span data-testid="first-done">{String(first?.done)}</span>
-      <span data-testid="first-subs">{first?.subs.length}</span>
+      <span data-testid="first-subs">{first?.subs.length ?? 0}</span>
       <span data-testid="first-sub0-done">{String(first?.subs[0]?.done)}</span>
       <button onClick={() => addTask('새 작업', null, 'today')}>add</button>
-      <button onClick={() => toggleDone(first.id)}>toggleDone</button>
-      <button onClick={() => deleteTask(first.id)}>delete</button>
-      <button onClick={() => updateTask(first.id, { title: '수정됨' })}>
+      <button onClick={() => first && toggleDone(first.id)}>toggleDone</button>
+      <button onClick={() => first && deleteTask(first.id)}>delete</button>
+      <button onClick={() => first && updateTask(first.id, { title: '수정됨' })}>
         update
       </button>
-      <button onClick={() => addSub(first.id, '새 서브')}>addSub</button>
-      <button onClick={() => toggleSub(first.id, first.subs[0]?.id)}>
+      <button onClick={() => first && addSub(first.id, '새 서브')}>addSub</button>
+      <button onClick={() => first && toggleSub(first.id, first.subs[0]?.id)}>
         toggleSub
       </button>
-      <button onClick={() => deleteSub(first.id, first.subs[0]?.id)}>
+      <button onClick={() => first && deleteSub(first.id, first.subs[0]?.id)}>
         deleteSub
       </button>
     </div>
@@ -47,97 +87,114 @@ function setup() {
   return render(
     <TasksProvider>
       <Probe />
-    </TasksProvider>,
+    </TasksProvider>
   );
 }
 
-describe('TasksProvider', () => {
-  it('initialises with the sample tasks', () => {
+beforeEach(() => {
+  Object.values(dataMock).forEach((m) => (m as ReturnType<typeof vi.fn>).mockReset());
+  // Default: empty list.
+  dataMock.listTasks.mockResolvedValue({ ok: true, data: [] });
+});
+
+describe('TasksProvider (Supabase-backed)', () => {
+  it('hydrates from listTasks() on mount', async () => {
+    dataMock.listTasks.mockResolvedValue({
+      ok: true,
+      data: [baseTask({ id: 't1', title: '서버에서 로드됨' })],
+    });
     setup();
-    expect(screen.getByTestId('count')).toHaveTextContent(
-      String(SAMPLE_TASKS.length),
-    );
-    expect(screen.getByTestId('first-title')).toHaveTextContent(
-      SAMPLE_TASKS[0].title,
+    await waitFor(() =>
+      expect(screen.getByTestId('first-title')).toHaveTextContent('서버에서 로드됨')
     );
   });
 
-  it('addTask inserts a task at the front', async () => {
+  it('addTask calls createTask and prepends the returned row', async () => {
+    dataMock.createTask.mockResolvedValue({
+      ok: true,
+      data: baseTask({ id: 'new', title: '새 작업' }),
+    });
     setup();
+    await waitFor(() => expect(screen.getByTestId('count')).toHaveTextContent('0'));
     await userEvent.click(screen.getByText('add'));
-    expect(screen.getByTestId('count')).toHaveTextContent(
-      String(SAMPLE_TASKS.length + 1),
-    );
+    await waitFor(() => expect(screen.getByTestId('count')).toHaveTextContent('1'));
     expect(screen.getByTestId('first-title')).toHaveTextContent('새 작업');
   });
 
-  it('toggleDone flips the task done flag', async () => {
+  it('toggleDone flips done locally and calls updateTask', async () => {
+    dataMock.listTasks.mockResolvedValue({
+      ok: true,
+      data: [baseTask({ id: 't1', done: false })],
+    });
+    dataMock.updateTask.mockResolvedValue({
+      ok: true,
+      data: baseTask({ id: 't1', done: true }),
+    });
     setup();
-    expect(screen.getByTestId('first-done')).toHaveTextContent('false');
+    await waitFor(() => expect(screen.getByTestId('first-done')).toHaveTextContent('false'));
     await userEvent.click(screen.getByText('toggleDone'));
-    expect(screen.getByTestId('first-done')).toHaveTextContent('true');
+    await waitFor(() => expect(screen.getByTestId('first-done')).toHaveTextContent('true'));
+    expect(dataMock.updateTask).toHaveBeenCalledWith('t1', { done: true });
   });
 
-  it('deleteTask removes the task', async () => {
+  it('deleteTask removes locally and calls deleteTask', async () => {
+    dataMock.listTasks.mockResolvedValue({
+      ok: true,
+      data: [baseTask({ id: 't1' })],
+    });
+    dataMock.deleteTask.mockResolvedValue({ ok: true, data: undefined });
     setup();
+    await waitFor(() => expect(screen.getByTestId('count')).toHaveTextContent('1'));
     await userEvent.click(screen.getByText('delete'));
-    expect(screen.getByTestId('count')).toHaveTextContent(
-      String(SAMPLE_TASKS.length - 1),
-    );
+    await waitFor(() => expect(screen.getByTestId('count')).toHaveTextContent('0'));
+    expect(dataMock.deleteTask).toHaveBeenCalledWith('t1');
   });
 
-  it('updateTask patches the task', async () => {
+  it('updateTask patches title and calls updateTask', async () => {
+    dataMock.listTasks.mockResolvedValue({
+      ok: true,
+      data: [baseTask({ id: 't1', title: '원본' })],
+    });
+    dataMock.updateTask.mockResolvedValue({
+      ok: true,
+      data: baseTask({ id: 't1', title: '수정됨' }),
+    });
     setup();
+    await waitFor(() => expect(screen.getByTestId('first-title')).toHaveTextContent('원본'));
     await userEvent.click(screen.getByText('update'));
-    expect(screen.getByTestId('first-title')).toHaveTextContent('수정됨');
+    await waitFor(() => expect(screen.getByTestId('first-title')).toHaveTextContent('수정됨'));
+    expect(dataMock.updateTask).toHaveBeenCalledWith('t1', { title: '수정됨' });
   });
 
-  it('addSub / toggleSub / deleteSub mutate subtasks', async () => {
-    setup();
-    const subsBefore = Number(
-      screen.getByTestId('first-subs').textContent,
-    );
-    await userEvent.click(screen.getByText('addSub'));
-    expect(screen.getByTestId('first-subs')).toHaveTextContent(
-      String(subsBefore + 1),
-    );
+  it('addSub / toggleSub / deleteSub manipulate subtasks via data layer', async () => {
+    dataMock.listTasks.mockResolvedValue({
+      ok: true,
+      data: [baseTask({ id: 't1', subs: [baseSub({ id: 's1', done: true })] })],
+    });
+    dataMock.createSubtask.mockResolvedValue({
+      ok: true,
+      data: baseSub({ id: 's2', text: '새 서브', done: false }),
+    });
+    dataMock.updateSubtask.mockResolvedValue({
+      ok: true,
+      data: baseSub({ id: 's1', done: false }),
+    });
+    dataMock.deleteSubtask.mockResolvedValue({ ok: true, data: undefined });
 
-    // SAMPLE_TASKS[0].subs[0] (s1) starts done: true
+    setup();
+    await waitFor(() => expect(screen.getByTestId('first-subs')).toHaveTextContent('1'));
+
+    await userEvent.click(screen.getByText('addSub'));
+    await waitFor(() => expect(screen.getByTestId('first-subs')).toHaveTextContent('2'));
+    expect(dataMock.createSubtask).toHaveBeenCalledWith('t1', { text: '새 서브', done: false });
+
     expect(screen.getByTestId('first-sub0-done')).toHaveTextContent('true');
     await userEvent.click(screen.getByText('toggleSub'));
-    expect(screen.getByTestId('first-sub0-done')).toHaveTextContent('false');
+    await waitFor(() => expect(screen.getByTestId('first-sub0-done')).toHaveTextContent('false'));
+    expect(dataMock.updateSubtask).toHaveBeenCalledWith('s1', { done: false });
 
     await userEvent.click(screen.getByText('deleteSub'));
-    expect(screen.getByTestId('first-subs')).toHaveTextContent(
-      String(subsBefore),
-    );
-  });
-
-  it('hydrates from stored tasks on mount', () => {
-    const stored: Task[] = [
-      {
-        id: 'stored1',
-        title: '저장된 작업',
-        due: '',
-        priority: 'none',
-        category: 'dev',
-        starred: false,
-        done: false,
-        notes: '',
-        subs: [],
-      },
-    ];
-    localStorage.setItem(TASKS_KEY, JSON.stringify(stored));
-    setup();
-    expect(screen.getByTestId('count')).toHaveTextContent('1');
-    expect(screen.getByTestId('first-title')).toHaveTextContent('저장된 작업');
-  });
-
-  it('persists mutations to localStorage', async () => {
-    setup();
-    await userEvent.click(screen.getByText('add'));
-    const saved = JSON.parse(localStorage.getItem(TASKS_KEY)!) as Task[];
-    expect(saved).toHaveLength(SAMPLE_TASKS.length + 1);
-    expect(saved[0].title).toBe('새 작업');
+    await waitFor(() => expect(screen.getByTestId('first-subs')).toHaveTextContent('1'));
+    expect(dataMock.deleteSubtask).toHaveBeenCalledWith('s1');
   });
 });

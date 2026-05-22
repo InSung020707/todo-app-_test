@@ -5,8 +5,10 @@ import { ThemeProvider } from '@/context/ThemeProvider';
 import { TasksProvider } from '@/context/TasksProvider';
 import { MainScreen } from '@/components/main/MainScreen';
 
-// Integration coverage for US6: the persistence + theme mechanism, exercised
-// through the real provider + screen composition (not the units in isolation).
+// Integration coverage for the data layer + theme mechanism, exercised
+// through the real provider + screen composition. Cross-session task
+// persistence (was: localStorage round-trip) is now backed by Supabase
+// and covered by tests/e2e/us1-signup-and-crud.spec.ts.
 
 const nav = vi.hoisted(() => ({
   params: new URLSearchParams(),
@@ -16,6 +18,11 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => nav.params,
   useRouter: () => ({ push: nav.push }),
 }));
+
+vi.mock('@/lib/data/tasks', async () => {
+  const helper = await import('../helpers/mock-data-tasks');
+  return helper.mockDataTasksWithSamples();
+});
 
 beforeEach(() => {
   nav.params = new URLSearchParams();
@@ -32,25 +39,12 @@ function App() {
   );
 }
 
-describe('app integration — persistence & theme (US6)', () => {
-  it('seeds the sample tasks on first run', () => {
+describe('app integration — data layer & theme', () => {
+  it('seeds tasks from the data layer on first run', async () => {
     render(<App />);
     expect(
-      screen.getByText('Q4 디자인 시스템 토큰 마이그레이션 리뷰'),
+      await screen.findByText('Q4 디자인 시스템 토큰 마이그레이션 리뷰'),
     ).toBeInTheDocument();
-  });
-
-  it('persists an added task across a remount', async () => {
-    const { unmount } = render(<App />);
-    await userEvent.type(
-      screen.getByPlaceholderText(/할 일을 추가하세요/),
-      '영속성 테스트 작업{Enter}',
-    );
-    expect(screen.getByText('영속성 테스트 작업')).toBeInTheDocument();
-
-    unmount();
-    render(<App />);
-    expect(screen.getByText('영속성 테스트 작업')).toBeInTheDocument();
   });
 
   it('persists the theme across a remount', async () => {

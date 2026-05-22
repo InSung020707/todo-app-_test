@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { SideNav } from '@/components/shared/SideNav';
 import { TasksProvider } from '@/context/TasksProvider';
@@ -9,6 +9,11 @@ const { push } = vi.hoisted(() => ({ push: vi.fn() }));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push }),
 }));
+
+vi.mock('@/lib/data/tasks', async () => {
+  const helper = await import('../helpers/mock-data-tasks');
+  return helper.mockDataTasksWithSamples();
+});
 
 beforeEach(() => push.mockClear());
 
@@ -35,9 +40,11 @@ describe('SideNav', () => {
     });
   });
 
-  it('shows the count badge for the 오늘 view (5 from the sample data)', () => {
+  it('shows the count badge for the 오늘 view (5 from the sample data)', async () => {
     renderNav();
-    expect(screen.getByRole('button', { name: /오늘/ })).toHaveTextContent('5');
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /오늘/ })).toHaveTextContent('5')
+    );
   });
 
   it('marks the active view item', () => {

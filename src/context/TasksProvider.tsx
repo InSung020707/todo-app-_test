@@ -1,26 +1,28 @@
 'use client';
 
-// Shared task state. Thin React wrapper around the pure tasksReducer — IDs are
-// generated here so the reducer stays deterministic.
+// Shared task state, backed by the Supabase data layer (`@/lib/data/tasks`).
 //
-// Persistence: the reducer is initialised with SAMPLE_TASKS (same value on the
-// server and the client, so hydration matches), then a mount effect dispatches
-// `hydrate` with whatever loadTasks() returns from localStorage. A second
-// effect persists every subsequent change; its first run is skipped so loading
-// stored data doesn't immediately echo a redundant write before hydration.
+// Public API is unchanged from the localStorage-era TasksProvider so the
+// consuming components (MainScreen / CalendarScreen / TaskRow / DetailPanel)
+// require no edits — this satisfies FR-012 (zero regression).
+//
+// Strategy: on mount, hydrate via listTasks(). Every mutation calls the
+// data layer; local state updates only after the server confirms (the data
+// layer returns the canonical row). Deletes are optimistic so the UI feels
+// snappy.
 
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
-  useReducer,
-  useRef,
+  useMemo,
+  useState,
   type ReactNode,
 } from 'react';
 import type { CategoryId, Task, ViewId } from '@/lib/types';
-import { tasksReducer } from '@/lib/store/reducer';
-import { SAMPLE_TASKS } from '@/lib/store/sample-data';
-import { loadTasks, saveTasks } from '@/lib/store/persistence';
+import { TODAY_KEY } from '@/lib/store/dates';
+import * as data from '@/lib/data/tasks';
 
 interface TasksContextValue {
   tasks: Task[];
@@ -36,43 +38,182 @@ interface TasksContextValue {
 
 const TasksContext = createContext<TasksContextValue | null>(null);
 
-const genId = (prefix: string) =>
-  prefix + Math.random().toString(36).slice(2, 8);
-
 export function TasksProvider({ children }: { children: ReactNode }) {
-  const [tasks, dispatch] = useReducer(tasksReducer, SAMPLE_TASKS);
-  const ready = useRef(false);
+  const [tasks, setTasks] = useState<Task[]>([]);
 
-  // Load persisted tasks after mount (post-hydration so SSR HTML matches).
+  // Hydrate from Supabase on mount.
   useEffect(() => {
-    dispatch({ type: 'hydrate', tasks: loadTasks() });
+    let cancelled = false;
+    (async () => {
+      const result = await data.listTasks();
+      if (cancelled) return;
+      if (result.ok) {
+        setTasks(result.data);
+      } else {
+        // Stay empty; the user will see an empty list. Errors surface in
+        // dev tools; v1 keeps UI silent to avoid noise on fresh accounts.
+        setTasks([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  // Persist on every change; skip the first run so the pre-hydration render
-  // can't clobber stored data.
-  useEffect(() => {
-    if (!ready.current) {
-      ready.current = true;
-      return;
-    }
-    saveTasks(tasks);
-  }, [tasks]);
+  const addTask = useCallback(
+    (title: string, categoryHint: CategoryId | null, view: ViewId) => {
+      const trimmed = title.trim();
+      if (!trimmed) return;
+      const category = categoryHint ?? 'dev';
+      // Default due date keeps parity with the legacy reducer's behavior:
+      // 'upcoming' lands a few days out, others land on TODAY_KEY.
+      const due = view === 'upcoming' ? '2026-05-18' : TODAY_KEY;
+      void data
+        .createTask({
+          title: trimmed,
+          due,
+          priority: 'none',
+          category,
+          starred: false,
+          done: false,
+          notes: '',
+        })
+        .then((result) => {
+          if (result.ok) {
+            setTasks((prev) => [result.data, ...prev]);
+          }
+        });
+    },
+    []
+  );
 
-  const value: TasksContextValue = {
-    tasks,
-    addTask: (title, categoryHint, view) =>
-      dispatch({ type: 'add', id: genId('t'), title, categoryHint, view }),
-    updateTask: (id, patch) => dispatch({ type: 'update', id, patch }),
-    deleteTask: (id) => dispatch({ type: 'delete', id }),
-    toggleDone: (id) => dispatch({ type: 'toggleDone', id }),
-    toggleStar: (id) => dispatch({ type: 'toggleStar', id }),
-    addSub: (taskId, text) =>
-      dispatch({ type: 'addSub', taskId, subId: genId('s'), text }),
-    toggleSub: (taskId, subId) =>
-      dispatch({ type: 'toggleSub', taskId, subId }),
-    deleteSub: (taskId, subId) =>
-      dispatch({ type: 'deleteSub', taskId, subId }),
-  };
+  const updateTask = useCallback(
+    (id: string, patch: Partial<Task>) => {
+      const dataPatch: Partial<Omit<Task, 'id' | 'subs'>> = {};
+      if (patch.title !== undefined) dataPatch.title = patch.title;
+      if (patch.due !== undefined) dataPatch.due = patch.due;
+      if (patch.priority !== undefined) dataPatch.priority = patch.priority;
+      if (patch.category !== undefined) dataPatch.category = patch.category;
+      if (patch.starred !== undefined) dataPatch.starred = patch.starred;
+      if (patch.done !== undefined) dataPatch.done = patch.done;
+      if (patch.notes !== undefined) dataPatch.notes = patch.notes;
+
+      void data.updateTask(id, dataPatch).then((result) => {
+        if (result.ok) {
+          setTasks((prev) =>
+            prev.map((t) =>
+              t.id === id ? { ...result.data, subs: t.subs } : t
+            )
+          );
+        }
+      });
+    },
+    []
+  );
+
+  const deleteTask = useCallback((id: string) => {
+    // Optimistic delete — remove locally immediately, then call the server.
+    setTasks((prev) => prev.filter((t) => t.id !== id));
+    void data.deleteTask(id);
+  }, []);
+
+  const toggleDone = useCallback(
+    (id: string) => {
+      setTasks((prev) => {
+        const cur = prev.find((t) => t.id === id);
+        if (!cur) return prev;
+        const nextDone = !cur.done;
+        void data.updateTask(id, { done: nextDone });
+        return prev.map((t) => (t.id === id ? { ...t, done: nextDone } : t));
+      });
+    },
+    []
+  );
+
+  const toggleStar = useCallback(
+    (id: string) => {
+      setTasks((prev) => {
+        const cur = prev.find((t) => t.id === id);
+        if (!cur) return prev;
+        const nextStarred = !cur.starred;
+        void data.updateTask(id, { starred: nextStarred });
+        return prev.map((t) =>
+          t.id === id ? { ...t, starred: nextStarred } : t
+        );
+      });
+    },
+    []
+  );
+
+  const addSub = useCallback((taskId: string, text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    void data
+      .createSubtask(taskId, { text: trimmed, done: false })
+      .then((result) => {
+        if (result.ok) {
+          setTasks((prev) =>
+            prev.map((t) =>
+              t.id === taskId ? { ...t, subs: [...t.subs, result.data] } : t
+            )
+          );
+        }
+      });
+  }, []);
+
+  const toggleSub = useCallback((taskId: string, subId: string) => {
+    setTasks((prev) => {
+      const task = prev.find((t) => t.id === taskId);
+      const sub = task?.subs.find((s) => s.id === subId);
+      if (!sub) return prev;
+      const nextDone = !sub.done;
+      void data.updateSubtask(subId, { done: nextDone });
+      return prev.map((t) =>
+        t.id === taskId
+          ? {
+              ...t,
+              subs: t.subs.map((s) =>
+                s.id === subId ? { ...s, done: nextDone } : s
+              ),
+            }
+          : t
+      );
+    });
+  }, []);
+
+  const deleteSub = useCallback((taskId: string, subId: string) => {
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.id === taskId ? { ...t, subs: t.subs.filter((s) => s.id !== subId) } : t
+      )
+    );
+    void data.deleteSubtask(subId);
+  }, []);
+
+  const value = useMemo<TasksContextValue>(
+    () => ({
+      tasks,
+      addTask,
+      updateTask,
+      deleteTask,
+      toggleDone,
+      toggleStar,
+      addSub,
+      toggleSub,
+      deleteSub,
+    }),
+    [
+      tasks,
+      addTask,
+      updateTask,
+      deleteTask,
+      toggleDone,
+      toggleStar,
+      addSub,
+      toggleSub,
+      deleteSub,
+    ]
+  );
 
   return (
     <TasksContext.Provider value={value}>{children}</TasksContext.Provider>

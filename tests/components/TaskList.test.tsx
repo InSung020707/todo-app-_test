@@ -1,9 +1,14 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { TaskList } from '@/components/main/TaskList';
 import { TasksProvider } from '@/context/TasksProvider';
 import type { CategoryId, ViewId } from '@/lib/types';
+
+vi.mock('@/lib/data/tasks', async () => {
+  const helper = await import('../helpers/mock-data-tasks');
+  return helper.mockDataTasksWithSamples();
+});
 
 function renderList(
   props: Partial<{
@@ -32,9 +37,9 @@ describe('TaskList', () => {
     expect(screen.getByRole('heading', { name: /오늘/ })).toBeInTheDocument();
   });
 
-  it('today view shows the 지연 and 오늘 group labels', () => {
+  it('today view shows the 지연 and 오늘 group labels', async () => {
     renderList({ view: 'today' });
-    expect(screen.getByText('지연 · 2')).toBeInTheDocument();
+    expect(await screen.findByText('지연 · 2')).toBeInTheDocument();
     expect(screen.getByText('오늘 · 3')).toBeInTheDocument();
   });
 
@@ -42,14 +47,16 @@ describe('TaskList', () => {
     renderList({ view: 'today' });
     const input = screen.getByPlaceholderText(/할 일을 추가하세요/);
     await userEvent.type(input, '새 테스트 할 일{Enter}');
-    expect(screen.getByText('새 테스트 할 일')).toBeInTheDocument();
+    expect(await screen.findByText('새 테스트 할 일')).toBeInTheDocument();
     expect(input).toHaveValue('');
   });
 
   it('ignores a blank title (no task added)', async () => {
     renderList({ view: 'today' });
     // "전체" chip shows the pre-filter count for the view (5 from sample data).
-    expect(screen.getByRole('button', { name: /전체/ })).toHaveTextContent('5');
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /전체/ })).toHaveTextContent('5')
+    );
     const input = screen.getByPlaceholderText(/할 일을 추가하세요/);
     await userEvent.type(input, '   {Enter}');
     expect(screen.getByRole('button', { name: /전체/ })).toHaveTextContent('5');
@@ -59,7 +66,7 @@ describe('TaskList', () => {
     renderList({ view: 'today' });
     // t2 is a med-priority task visible in the today view.
     expect(
-      screen.getByText('코드 리뷰 — PR #234 인증 모듈 리팩토링'),
+      await screen.findByText('코드 리뷰 — PR #234 인증 모듈 리팩토링'),
     ).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /우선순위 높음/ }));
     expect(
