@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { AuthProvider } from '@/context/AuthProvider';
 import { ThemeProvider } from '@/context/ThemeProvider';
 import { TasksProvider } from '@/context/TasksProvider';
 import { MainScreen } from '@/components/main/MainScreen';
@@ -31,11 +32,13 @@ beforeEach(() => {
 
 function App() {
   return (
-    <ThemeProvider>
-      <TasksProvider>
-        <MainScreen />
-      </TasksProvider>
-    </ThemeProvider>
+    <AuthProvider>
+      <ThemeProvider>
+        <TasksProvider>
+          <MainScreen />
+        </TasksProvider>
+      </ThemeProvider>
+    </AuthProvider>
   );
 }
 

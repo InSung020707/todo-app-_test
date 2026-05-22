@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { CalendarScreen } from '@/components/calendar/CalendarScreen';
+import { AuthProvider } from '@/context/AuthProvider';
 import { TasksProvider } from '@/context/TasksProvider';
 import { ThemeProvider } from '@/context/ThemeProvider';
 
@@ -16,11 +17,13 @@ vi.mock('@/lib/data/tasks', async () => {
 
 function renderCalendar() {
   return render(
-    <ThemeProvider>
-      <TasksProvider>
-        <CalendarScreen />
-      </TasksProvider>
-    </ThemeProvider>,
+    <AuthProvider>
+      <ThemeProvider>
+        <TasksProvider>
+          <CalendarScreen />
+        </TasksProvider>
+      </ThemeProvider>
+    </AuthProvider>,
   );
 }
 

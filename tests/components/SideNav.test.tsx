@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { SideNav } from '@/components/shared/SideNav';
+import { AuthProvider } from '@/context/AuthProvider';
 import { TasksProvider } from '@/context/TasksProvider';
 import { ThemeProvider } from '@/context/ThemeProvider';
 
@@ -19,11 +20,13 @@ beforeEach(() => push.mockClear());
 
 function renderNav(props: Parameters<typeof SideNav>[0] = {}) {
   return render(
-    <ThemeProvider>
-      <TasksProvider>
-        <SideNav {...props} />
-      </TasksProvider>
-    </ThemeProvider>,
+    <AuthProvider>
+      <ThemeProvider>
+        <TasksProvider>
+          <SideNav {...props} />
+        </TasksProvider>
+      </ThemeProvider>
+    </AuthProvider>,
   );
 }
 

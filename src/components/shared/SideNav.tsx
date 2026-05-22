@@ -8,6 +8,7 @@
 
 import { useRouter } from 'next/navigation';
 import type { CategoryId, ViewId } from '@/lib/types';
+import { useAuth } from '@/context/AuthProvider';
 import { useTasks } from '@/context/TasksProvider';
 import { CATEGORIES, VIEWS } from '@/lib/store/sample-data';
 import { viewCount, catCount } from '@/lib/store/selectors';
@@ -23,6 +24,13 @@ interface SideNavProps {
 export function SideNav({ activeView, activeCat, activeRoute }: SideNavProps) {
   const router = useRouter();
   const { tasks } = useTasks();
+  const { user } = useAuth();
+
+  // Display name derived from the email's local-part; fall back to a
+  // generic label if no email (e.g. OAuth without an email claim).
+  const userEmail = user?.email ?? '';
+  const userName = userEmail ? userEmail.split('@')[0] : '사용자';
+  const userAvatar = userName.charAt(0).toUpperCase() || '?';
 
   const onMain = !activeRoute;
 
@@ -45,7 +53,7 @@ export function SideNav({ activeView, activeCat, activeRoute }: SideNavProps) {
       </div>
 
       <div className="nav__user">
-        <span className="nav__user-avatar">민</span>
+        <span className="nav__user-avatar">{userAvatar}</span>
         <span
           style={{
             display: 'flex',
@@ -54,8 +62,8 @@ export function SideNav({ activeView, activeCat, activeRoute }: SideNavProps) {
             minWidth: 0,
           }}
         >
-          <span className="nav__user-name">김민지</span>
-          <span className="nav__user-mail">minji@demodev.kr</span>
+          <span className="nav__user-name">{userName}</span>
+          <span className="nav__user-mail">{userEmail || ' '}</span>
         </span>
         <Icon name="chevD" size={14} style={{ color: 'var(--fg-muted)' }} />
       </div>

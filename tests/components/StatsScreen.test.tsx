@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { StatsScreen } from '@/components/stats/StatsScreen';
+import { AuthProvider } from '@/context/AuthProvider';
 import { TasksProvider } from '@/context/TasksProvider';
 import { ThemeProvider } from '@/context/ThemeProvider';
 
@@ -11,11 +12,13 @@ vi.mock('next/navigation', () => ({
 
 function renderStats() {
   return render(
-    <ThemeProvider>
-      <TasksProvider>
-        <StatsScreen />
-      </TasksProvider>
-    </ThemeProvider>,
+    <AuthProvider>
+      <ThemeProvider>
+        <TasksProvider>
+          <StatsScreen />
+        </TasksProvider>
+      </ThemeProvider>
+    </AuthProvider>,
   );
 }
 

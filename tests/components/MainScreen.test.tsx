@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MainScreen } from '@/components/main/MainScreen';
+import { AuthProvider } from '@/context/AuthProvider';
 import { TasksProvider } from '@/context/TasksProvider';
 import { ThemeProvider } from '@/context/ThemeProvider';
 
@@ -26,11 +27,13 @@ beforeEach(() => {
 
 function renderMain() {
   return render(
-    <ThemeProvider>
-      <TasksProvider>
-        <MainScreen />
-      </TasksProvider>
-    </ThemeProvider>,
+    <AuthProvider>
+      <ThemeProvider>
+        <TasksProvider>
+          <MainScreen />
+        </TasksProvider>
+      </ThemeProvider>
+    </AuthProvider>,
   );
 }
 
