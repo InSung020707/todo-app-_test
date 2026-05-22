@@ -24,7 +24,13 @@ interface SideNavProps {
 export function SideNav({ activeView, activeCat, activeRoute }: SideNavProps) {
   const router = useRouter();
   const { tasks } = useTasks();
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
+
+  const handleLogout = async () => {
+    await signOut();
+    router.push('/login');
+    router.refresh();
+  };
 
   // Display name derived from the email's local-part; fall back to a
   // generic label if no email (e.g. OAuth without an email claim).
@@ -65,7 +71,24 @@ export function SideNav({ activeView, activeCat, activeRoute }: SideNavProps) {
           <span className="nav__user-name">{userName}</span>
           <span className="nav__user-mail">{userEmail || ' '}</span>
         </span>
-        <Icon name="chevD" size={14} style={{ color: 'var(--fg-muted)' }} />
+        <button
+          type="button"
+          onClick={handleLogout}
+          aria-label="로그아웃"
+          title="로그아웃"
+          style={{
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            color: 'var(--fg-muted)',
+            padding: 4,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Icon name="logout" size={14} />
+        </button>
       </div>
 
       <div style={{ height: 8 }} />
