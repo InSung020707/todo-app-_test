@@ -1,37 +1,42 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change: (template) → 1.0.0
-Bump rationale: Initial ratification — first concrete constitution replacing the
-  unfilled template. MAJOR baseline.
+Version change: 1.0.0 → 2.0.0
+Bump rationale: MAJOR — backward-incompatible removal of the "no backend / localStorage
+  only" governance rule. Supabase (Postgres + Auth) becomes a first-class dependency.
+  Principle III is rewritten; Technology Constraints are rewritten. All persistence-related
+  guidance changes from "client-only" to "client + Supabase backend".
 
 Modified principles:
-  [PRINCIPLE_1_NAME] → I. Test-First (NON-NEGOTIABLE)
-  [PRINCIPLE_2_NAME] → II. Design Fidelity
-  [PRINCIPLE_3_NAME] → III. Simplicity & YAGNI
-  [PRINCIPLE_4_NAME] → IV. Component Modularity
-  [PRINCIPLE_5_NAME] → V. Accessibility
+  I. Test-First (NON-NEGOTIABLE) — unchanged
+  II. Design Fidelity — unchanged
+  III. Simplicity & YAGNI — rewritten: removed "no backend"; permitted Supabase only
+  IV. Component Modularity — unchanged (data-layer module clarified)
+  V. Accessibility — unchanged
 
-Added sections:
-  - Technology Constraints (was [SECTION_2_NAME])
-  - Development Workflow (was [SECTION_3_NAME])
+Added sections: none (Supabase guidance folded into Technology Constraints and Principle III)
 
 Removed sections: none
 
-Templates requiring updates:
-  ✅ .specify/templates/plan-template.md — generic "Constitution Check" gate, no
-     edit needed; /speckit-plan fills it against these principles.
-  ✅ .specify/templates/spec-template.md — generic; tests are requested explicitly
-     in the spec to satisfy Principle I.
-  ✅ .specify/templates/tasks-template.md — generic; tests are non-optional for
-     this project per Principle I and will be requested in the spec.
+Templates / docs requiring updates:
+  ⚠ specs/001-todo-app/spec.md             — references localStorage persistence; review
+  ⚠ specs/001-todo-app/plan.md             — references localStorage; needs Supabase plan
+  ⚠ specs/001-todo-app/data-model.md       — needs Supabase schema + RLS policies
+  ⚠ specs/001-todo-app/tasks.md            — tasks based on localStorage; regenerate
+  ⚠ specs/001-todo-app/research.md         — localStorage rationale obsolete
+  ⚠ specs/001-todo-app/checklists/requirements.md — may include localStorage items
+  ✅ .specify/templates/plan-template.md    — generic; gate re-evaluated by /speckit-plan
+  ✅ .specify/templates/spec-template.md    — generic; no edit needed
+  ✅ .specify/templates/tasks-template.md   — generic; no edit needed
 
-Follow-up TODOs: none
+Follow-up TODOs:
+  - Re-run /speckit-plan (or manually update specs/001-todo-app/*) to reflect Supabase
+  - Define Supabase tables, RLS policies, and auth flow in data-model.md
 -->
 
 # demodev Tasks Constitution
 
-/ 한국어 Todo 웹앱 — Claude Design 핸드오프 번들의 프로덕션 구현
+/ 한국어 Todo 웹앱 — Claude Design 핸드오프 번들의 프로덕션 구현 (Supabase 백엔드)
 
 ## Core Principles
 
@@ -46,14 +51,18 @@ make it pass with the minimum code, then refactor.
 - Component behavior — interactive components (add / edit / delete / toggle-done /
   toggle-star / subtask CRUD / view switching / theme toggle) MUST have behavioral
   tests (React Testing Library) written BEFORE the component logic.
+- Data layer — the Supabase access module (queries, mutations, auth helpers) MUST have
+  tests written BEFORE the implementation. Tests use mocked Supabase clients or a
+  local Supabase test branch; never the production project.
 - A test that has never failed is not trusted. Every test MUST be observed failing
   for the right reason before its implementation is written.
 - Tests are NOT optional for this project; the `/speckit-tasks` "tests optional"
   default is overridden here.
 
 Rationale: the prototype's value lives in its filtering/grouping logic and its
-interactivity. Locking that behavior with tests first prevents regressions when the
-prototype's structure is restructured into production components.
+interactivity. With Supabase added, persistence and auth become additional failure
+surfaces — locking all three layers (logic, UI, data) with tests first prevents
+regressions when the prototype's structure is restructured into production components.
 
 ### II. Design Fidelity
 
@@ -76,28 +85,37 @@ do not copy the prototype's internal structure.
 
 Build only what is specified. No speculative generality.
 
-- No backend. Persistence is `localStorage` only; sample data seeds first run.
+- Persistence is **Supabase (Postgres) only**. No `localStorage`-only fallback for
+  user data, no parallel client-side store mirroring server state beyond what React
+  Query / SWR-style caching naturally provides.
+- No additional backends beyond Supabase. No separate Node/Express API, no
+  third-party SaaS for data, auth, or storage unless the spec explicitly demands it.
 - No features beyond the spec — no abstractions for single-use code, no config
   surface that was not requested, no error handling for impossible states.
 - Prefer the smallest code that satisfies a passing test. If it can be 50 lines,
   it is not 200.
 
-Rationale: the scope is a faithful, interactive reproduction of a fixed design —
-not a platform. Extra surface area is pure cost.
+Rationale: the scope is a faithful, interactive reproduction of a fixed design,
+persisted to a single managed backend. Extra surface area (extra services, extra
+caching layers, extra fallback stores) is pure cost.
 
 ### IV. Component Modularity
 
-Screens and shared UI are separated into independently testable units.
+Screens, shared UI, and the data layer are separated into independently testable units.
 
 - Each screen (login, main, calendar, stats) is its own module/route.
 - Shared UI (icons, side-nav, primitives like check / chip / button) lives in
   shared modules consumed by screens.
 - The task store is a single module with a typed public API; components consume it,
   they do not re-implement filtering or mutation logic.
-- A unit MUST be testable without mounting an unrelated screen.
+- The Supabase data layer is a single module with a typed public API
+  (e.g. `getTasks`, `createTask`, `updateTask`, `deleteTask`, `signIn`, `signOut`);
+  components and the task store consume it, they do not call `supabase-js` directly.
+- A unit MUST be testable without mounting an unrelated screen and without hitting
+  a real Supabase project.
 
-Rationale: modular boundaries are what make Principle I's component tests cheap and
-what keep the four-screen scope from collapsing into one file.
+Rationale: modular boundaries are what make Principle I's tests cheap and what
+keep the four-screen scope plus a data layer from collapsing into one file.
 
 ### V. Accessibility
 
@@ -110,22 +128,36 @@ The production build MUST be at least as accessible as the prototype.
 - Keyboard operability: Enter submits the add-task and add-subtask inputs; focus
   states are visible (`:focus-visible` rings from the token layer).
 - Checkboxes, toggles, and radio groups expose correct roles/states.
+- Auth forms MUST be keyboard-operable end to end; error messages MUST be
+  announced (live region or associated `aria-describedby`).
 
 Rationale: the prototype already encodes these affordances; regressing them in the
-"real" build would be a downgrade, not a port.
+"real" build would be a downgrade, not a port. Auth was not in the prototype, so
+its accessibility is specified explicitly here.
 
 ## Technology Constraints
 
 - **Framework**: Next.js (App Router).
 - **Language**: TypeScript — strict mode; no implicit `any` in committed code.
-- **Testing**: Vitest + React Testing Library; jsdom environment.
+- **Testing**: Vitest + React Testing Library; jsdom environment. Supabase access in
+  tests is mocked or pointed at a local/branch Supabase instance — never production.
 - **Styling**: CSS carrying the demodev design tokens; no CSS framework that would
   re-derive the token scales.
-- **Persistence**: `localStorage` only. No server, no database, no external API.
+- **Persistence**: **Supabase (Postgres)**, accessed exclusively via
+  `@supabase/supabase-js`.
+  - Schema lives in versioned SQL migrations under `supabase/migrations/`.
+  - **Row Level Security (RLS) MUST be enabled on every user-facing table**; no
+    user-facing table is exposed without at least one explicit policy.
+  - Server-only secrets (service role key, etc.) MUST NOT be shipped to the client.
+- **Auth**: Supabase Auth. Method (email/password, magic link, OAuth) is decided in
+  the spec; this constitution does not pre-commit to one.
+- **Environment**: `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+  live in `.env.local`; `.env.local` MUST be gitignored. Service-role or any
+  non-anon keys MUST NOT appear in client bundles.
 - **Fonts**: Pretendard Variable + Gaegu + JetBrains Mono via the existing CDN
   `@import`s in `colors_and_type.css`.
-- **Demo clock**: "today" is pinned to 2026-05-15 to keep relative-date logic and
-  sample data deterministic, exactly as the prototype does.
+- **Demo clock**: "today" is pinned to 2026-05-15 for relative-date logic and
+  deterministic sample data, matching the prototype.
 
 ## Development Workflow
 
@@ -133,6 +165,9 @@ Rationale: the prototype already encodes these affordances; regressing them in t
   tasks → analyze → implement.
 - Within implementation, work proceeds task-by-task; each task that produces code
   follows Red-Green-Refactor.
+- Schema changes are tasks too: every change to Supabase tables, policies, or
+  functions ships as a migration file under `supabase/migrations/` in the same
+  commit as the code that depends on it.
 - A task is "done" only when its tests pass AND the broader suite still passes.
   Failing or partial states keep the task open.
 - Commits are made per task or per logical group, with the test added in (or before)
@@ -156,4 +191,4 @@ Rationale: the prototype already encodes these affordances; regressing them in t
   principles; any complexity that violates a principle MUST be justified in the
   plan's Complexity Tracking table or removed.
 
-**Version**: 1.0.0 | **Ratified**: 2026-05-15 | **Last Amended**: 2026-05-15
+**Version**: 2.0.0 | **Ratified**: 2026-05-15 | **Last Amended**: 2026-05-22

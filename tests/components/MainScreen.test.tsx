@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MainScreen } from '@/components/main/MainScreen';
 import { TasksProvider } from '@/context/TasksProvider';
@@ -13,6 +13,11 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => nav.params,
   useRouter: () => ({ push: nav.push }),
 }));
+
+vi.mock('@/lib/data/tasks', async () => {
+  const helper = await import('../helpers/mock-data-tasks');
+  return helper.mockDataTasksWithSamples();
+});
 
 beforeEach(() => {
   nav.params = new URLSearchParams();
@@ -75,9 +80,10 @@ describe('MainScreen', () => {
 
   it('selects a task into the detail panel when its row is clicked', async () => {
     renderMain(); // today view — t1 is visible
-    await userEvent.click(
-      screen.getByText('Q4 디자인 시스템 토큰 마이그레이션 리뷰'),
+    const row = await waitFor(() =>
+      screen.getByText('Q4 디자인 시스템 토큰 마이그레이션 리뷰')
     );
+    await userEvent.click(row);
     expect(
       screen.getByDisplayValue('Q4 디자인 시스템 토큰 마이그레이션 리뷰'),
     ).toBeInTheDocument();
@@ -85,9 +91,10 @@ describe('MainScreen', () => {
 
   it('returns to the empty detail state after deleting the selected task', async () => {
     renderMain();
-    await userEvent.click(
-      screen.getByText('Q4 디자인 시스템 토큰 마이그레이션 리뷰'),
+    const row = await waitFor(() =>
+      screen.getByText('Q4 디자인 시스템 토큰 마이그레이션 리뷰')
     );
+    await userEvent.click(row);
     await userEvent.click(screen.getByRole('button', { name: '삭제' }));
     expect(screen.getByText('선택된 할 일이 없습니다')).toBeInTheDocument();
   });

@@ -9,6 +9,11 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn() }),
 }));
 
+vi.mock('@/lib/data/tasks', async () => {
+  const helper = await import('../helpers/mock-data-tasks');
+  return helper.mockDataTasksWithSamples();
+});
+
 function renderCalendar() {
   return render(
     <ThemeProvider>
@@ -34,12 +39,12 @@ describe('CalendarScreen', () => {
     expect(today).toHaveTextContent('15');
   });
 
-  it('renders task events in their date cells with a "+N개 더" overflow', () => {
+  it('renders task events in their date cells with a "+N개 더" overflow', async () => {
     renderCalendar();
     // t6 is due 2026-05-16; the selected day defaults to 05-15 so it only
     // appears in the grid, not the preview panel.
     expect(
-      screen.getByText('신규 클라이언트 킥오프 미팅 준비'),
+      await screen.findByText('신규 클라이언트 킥오프 미팅 준비'),
     ).toBeInTheDocument();
     // 2026-05-15 has 4 tasks → 3 shown + "+ 1개 더"
     expect(screen.getByText(/1개 더/)).toBeInTheDocument();

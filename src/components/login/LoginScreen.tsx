@@ -1,21 +1,18 @@
 'use client';
 
 // Login screen — split layout: dark hero on the left, form on the right.
-// Presentational: there is no real auth, so the login and social buttons just
-// route to /main.
+// The form area toggles between SignInForm and SignUpForm; both use the
+// auth data layer for real Supabase authentication.
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { Icon, GoogleIcon } from '@/components/shared/Icon';
-import { Check } from '@/components/shared/Check';
+import { Icon } from '@/components/shared/Icon';
+import { SignInForm } from '@/components/auth/SignInForm';
+import { SignUpForm } from '@/components/auth/SignUpForm';
+
+type Mode = 'signin' | 'signup';
 
 export function LoginScreen() {
-  const router = useRouter();
-  const [email, setEmail] = useState('minji@demodev.kr');
-  const [pw, setPw] = useState('••••••••••');
-  const [remember, setRemember] = useState(true);
-
-  const goToMain = () => router.push('/main');
+  const [mode, setMode] = useState<Mode>('signin');
 
   return (
     <div className="login">
@@ -53,83 +50,64 @@ export function LoginScreen() {
 
       {/* Form */}
       <div className="login__pane">
-        <div className="login__form">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div>
-            <h1>다시 오신 것을 환영합니다</h1>
+            <h1>
+              {mode === 'signin'
+                ? '다시 오신 것을 환영합니다'
+                : '계정을 만들어 시작하세요'}
+            </h1>
             <p style={{ marginTop: 8 }}>
-              계정에 로그인하고 오늘의 할 일을 확인하세요.
+              {mode === 'signin'
+                ? '계정에 로그인하고 오늘의 할 일을 확인하세요.'
+                : '이메일과 비밀번호만으로 즉시 시작할 수 있어요.'}
             </p>
           </div>
 
-          <div className="login__alt">
-            <button
-              className="btn btn--outline"
-              type="button"
-              style={{ height: 44, justifyContent: 'center', gap: 8 }}
-              onClick={goToMain}
-            >
-              <GoogleIcon size={16} /> Google
-            </button>
-            <button
-              className="btn btn--outline"
-              type="button"
-              style={{ height: 44, justifyContent: 'center', gap: 8 }}
-              onClick={goToMain}
-            >
-              <Icon name="github" size={16} /> GitHub
-            </button>
-          </div>
-
-          <div className="login__divider">또는 이메일로</div>
-
-          <div className="login__group">
-            <label htmlFor="login-email">이메일</label>
-            <div className="field field--lg">
-              <input
-                id="login-email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-              />
-            </div>
-          </div>
-
-          <div className="login__group">
-            <div className="login__row">
-              <label htmlFor="login-pw">비밀번호</label>
-              <a href="#">잊어버리셨나요?</a>
-            </div>
-            <div className="field field--lg">
-              <input
-                id="login-pw"
-                type="password"
-                value={pw}
-                onChange={(e) => setPw(e.target.value)}
-                placeholder="••••••••"
-              />
-            </div>
-          </div>
-
-          <div className="cb">
-            <Check
-              checked={remember}
-              onToggle={() => setRemember((r) => !r)}
-              label="로그인 상태 유지"
-            />
-            <span>로그인 상태 유지</span>
-          </div>
-
-          <button
-            className="btn btn--primary btn--lg btn--block"
-            type="button"
-            onClick={goToMain}
-          >
-            로그인
-          </button>
+          {mode === 'signin' ? <SignInForm /> : <SignUpForm />}
 
           <div className="login__signup">
-            계정이 없으신가요? <a href="#">무료로 시작하기</a>
+            {mode === 'signin' ? (
+              <>
+                계정이 없으신가요?{' '}
+                <button
+                  type="button"
+                  className="link-button"
+                  onClick={() => setMode('signup')}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'inherit',
+                    textDecoration: 'underline',
+                    cursor: 'pointer',
+                    padding: 0,
+                    font: 'inherit',
+                  }}
+                >
+                  무료로 시작하기
+                </button>
+              </>
+            ) : (
+              <>
+                이미 계정이 있으신가요?{' '}
+                <button
+                  type="button"
+                  className="link-button"
+                  onClick={() => setMode('signin')}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'inherit',
+                    textDecoration: 'underline',
+                    cursor: 'pointer',
+                    padding: 0,
+                    font: 'inherit',
+                  }}
+                >
+                  로그인
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>
